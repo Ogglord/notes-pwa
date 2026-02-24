@@ -251,6 +251,34 @@
     white-space: nowrap;
   }
 
+  .task.linked { cursor: pointer; }
+  .task.linked:active { background: var(--surface-2); }
+
+  .source-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    margin-left: auto;
+  }
+  .source-badge.badge-linear {
+    background: rgba(99, 91, 255, 0.1);
+    color: #7c6bf5;
+    border: 1px solid rgba(99, 91, 255, 0.2);
+  }
+  .source-badge.badge-pylon {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+  .task-link-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
   .task.done-task { opacity: 0.45; }
   .task.done-task .task-content { text-decoration: line-through; }
 
@@ -426,6 +454,8 @@ const PRIORITY_RE = /\[#([ABC])]\s*/;
 const DEADLINE_RE = /DEADLINE:\s*<([^>]+)>/;
 const SCHEDULED_RE = /SCHEDULED:\s*<([^>]+)>/;
 const TAG_RE = /#(\w[\w-]*)/g;
+const LINK_RE = /\[(.+?)]\((.+?)\)/g;
+const SOURCE_TRACKER_RE = /\s+(linear|pylon):[a-f0-9-]+/g;
 
 function parseLogseqTasks(markdown, filename) {
   const lines = markdown.split('\n');
@@ -451,6 +481,20 @@ function parseLogseqTasks(markdown, filename) {
     const sm = text.match(SCHEDULED_RE);
     if (sm) { scheduled = sm[1]; text = text.replace(SCHEDULED_RE, '').trim(); }
 
+    // Extract URL from markdown link (before stripping)
+    let url = null;
+    const linkMatch = text.match(/\[.+?]\((.+?)\)/);
+    if (linkMatch) url = linkMatch[1];
+
+    // Generate Pylon URL from identifier if no URL found
+    if (!url && filename === 'pylon-digest') {
+      const pylonNum = text.match(/#(\d+)/);
+      if (pylonNum) url = `https://app.usepylon.com/support/issues/views/all-issues?issueNumber=${pylonNum[1]}`;
+    }
+
+    // Strip source tracker (linear:uuid, pylon:uuid)
+    text = text.replace(SOURCE_TRACKER_RE, '').trim();
+
     // Extract tags
     const tags = [];
     let tm;
@@ -463,7 +507,7 @@ function parseLogseqTasks(markdown, filename) {
     text = text.replace(/\[\[(.+?)]]/g, '$1');
     text = text.replace(/\[(.+?)]\((.+?)\)/g, '$1');
 
-    tasks.push({ status, text, priority, deadline, scheduled, tags, source: filename });
+    tasks.push({ status, text, priority, deadline, scheduled, tags, source: filename, url });
   }
   return tasks;
 }
@@ -741,16 +785,40 @@ function renderTask(t) {
   const tagClass = `tag-${t.status.toLowerCase()}`;
   const doneClass = t.status === 'DONE' ? 'done-task' : '';
   const prioClass = t.priority ? `priority-${t.priority.toLowerCase()}` : '';
+  const isDigest = t.source === 'linear-digest' || t.source === 'pylon-digest';
+  const linkedClass = t.url ? 'linked' : '';
+  const onclick = t.url ? `onclick="window.open('${t.url}', '_blank')"` : '';
+
+  // For digest items: strip the issue ID prefix (e.g. "GNMIS-163 Title" → "Title")
+  let displayText = t.text;
+  if (isDigest) {
+    displayText = displayText.replace(/^[A-Z]+-\d+\s+/, '');
+    // Also strip leading #number for pylon
+    displayText = displayText.replace(/^#\d+\s+/, '');
+  }
 
   let meta = `<span class="task-tag ${tagClass}">${t.status}</span>`;
   if (t.priority) meta += `<span class="task-priority ${prioClass}">[#${t.priority}]</span>`;
-  if (t.deadline) meta += `<span class="task-priority">📅 ${t.deadline}</span>`;
-  if (t.scheduled) meta += `<span class="task-priority">⏰ ${t.scheduled}</span>`;
-  meta += `<span class="task-source">${t.source}</span>`;
+
+  if (isDigest) {
+    // Clean source badge + link arrow
+    const badgeType = t.source === 'linear-digest' ? 'linear' : 'pylon';
+    // Extract issue ID for the badge label
+    const idMatch = t.text.match(/^([A-Z]+-\d+|#\d+)/);
+    const badgeLabel = idMatch ? idMatch[1] : badgeType;
+    meta += `<span class="source-badge badge-${badgeType}">${badgeLabel}</span>`;
+    if (t.url) {
+      meta += `<svg class="task-link-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>`;
+    }
+  } else {
+    if (t.deadline) meta += `<span class="task-priority">📅 ${t.deadline}</span>`;
+    if (t.scheduled) meta += `<span class="task-priority">⏰ ${t.scheduled}</span>`;
+    meta += `<span class="task-source">${t.source}</span>`;
+  }
 
   return `
-    <div class="task ${doneClass}">
-      <div class="task-content">${t.text}</div>
+    <div class="task ${doneClass} ${linkedClass}" ${onclick}>
+      <div class="task-content">${displayText}</div>
       <div class="task-meta">${meta}</div>
     </div>
   `;
