@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TODOs">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>TODOs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-2: #1c1c1c;
+    --border: #262626;
+    --text: #e8e8e8;
+    --text-dim: #737373;
+    --text-muted: #525252;
+    --doing: #f59e0b;
+    --doing-bg: rgba(245, 158, 11, 0.08);
+    --doing-border: rgba(245, 158, 11, 0.2);
+    --todo: #6366f1;
+    --todo-bg: rgba(99, 102, 241, 0.08);
+    --todo-border: rgba(99, 102, 241, 0.2);
+    --later: #8b5cf6;
+    --later-bg: rgba(139, 92, 246, 0.08);
+    --later-border: rgba(139, 92, 246, 0.2);
+    --done: #22c55e;
+    --done-bg: rgba(34, 197, 94, 0.08);
+    --done-border: rgba(34, 197, 94, 0.2);
+    --waiting: #ec4899;
+    --waiting-bg: rgba(236, 72, 153, 0.08);
+    --waiting-border: rgba(236, 72, 153, 0.2);
+    --now: #ef4444;
+    --now-bg: rgba(239, 68, 68, 0.08);
+    --now-border: rgba(239, 68, 68, 0.2);
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'DM Sans', system-ui, sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .app {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+
+  /* Header */
+  header {
+    padding: 24px 0 8px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+  header.scrolled { border-bottom-color: var(--border); }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  h1 span { color: var(--text-muted); font-weight: 400; }
+
+  .refresh-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .refresh-btn:active { transform: scale(0.92); background: var(--surface-2); }
+  .refresh-btn.spinning svg { animation: spin 0.8s ease; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Filter tabs */
+  .filters {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .filters::-webkit-scrollbar { display: none; }
+
+  .filter-btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .filter-btn:active { transform: scale(0.96); }
+  .filter-btn .count {
+    font-size: 10px;
+    opacity: 0.6;
+  }
+  .filter-btn.active {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+
+  /* Sections */
+  .section {
+    margin-bottom: 24px;
+    animation: fadeUp 0.3s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 0 4px;
+  }
+  .section-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+  .section-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* Task items */
+  .task {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 6px;
+    transition: all 0.15s;
+    cursor: default;
+  }
+  .task:active { transform: scale(0.99); }
+
+  .task-content {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .task-content code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--surface-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--doing);
+  }
+
+  .task-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  .task-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .tag-doing   { background: var(--doing-bg);   color: var(--doing);   border: 1px solid var(--doing-border); }
+  .tag-todo    { background: var(--todo-bg);    color: var(--todo);    border: 1px solid var(--todo-border); }
+  .tag-later   { background: var(--later-bg);   color: var(--later);   border: 1px solid var(--later-border); }
+  .tag-done    { background: var(--done-bg);    color: var(--done);    border: 1px solid var(--done-border); }
+  .tag-waiting { background: var(--waiting-bg); color: var(--waiting); border: 1px solid var(--waiting-border); }
+  .tag-now     { background: var(--now-bg);     color: var(--now);     border: 1px solid var(--now-border); }
+
+  .task-priority {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .task-priority.priority-a { color: var(--now); }
+  .task-priority.priority-b { color: var(--doing); }
+  .task-priority.priority-c { color: var(--todo); }
+
+  .task-source {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: auto;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .task.done-task { opacity: 0.45; }
+  .task.done-task .task-content { text-decoration: line-through; }
+
+  /* States */
+  .loading, .error, .empty {
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .loading-dots {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .loading-dots span {
+    width: 8px; height: 8px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    animation: pulse 1.2s ease infinite;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes pulse {
+    0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+  .loading p, .empty p { font-size: 13px; color: var(--text-muted); font-family: var(--mono); }
+
+  .error-box {
+    background: var(--now-bg);
+    border: 1px solid var(--now-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: inline-block;
+  }
+  .error-box p { color: var(--now); font-family: var(--mono); font-size: 13px; }
+  .error-box .hint { color: var(--text-muted); margin-top: 8px; }
+
+  .last-updated {
+    text-align: center;
+    padding: 16px 0 32px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* Setup screen */
+  .setup {
+    padding: 60px 0;
+    text-align: center;
+  }
+  .setup h2 {
+    font-family: var(--mono);
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .setup p {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .setup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+  }
+  .setup-form label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+  }
+  .setup-form input {
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .setup-form input:focus { border-color: var(--todo); }
+  .setup-form input::placeholder { color: var(--text-muted); }
+
+  .setup-btn {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: var(--text);
+    color: var(--bg);
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.15s;
+  }
+  .setup-btn:active { transform: scale(0.98); opacity: 0.9; }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: -6px;
+  }
+
+  .settings-link {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 8px;
+    border: none;
+    background: none;
+  }
+  .settings-link:active { color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────
+const CONFIG_KEY = 'todo-pwa-config';
+const CACHE_KEY = 'todo-pwa-cache';
+
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; }
+}
+function saveConfig(cfg) { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
+function getCache() {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY)); } catch { return null; }
+}
+function saveCache(data) {
+  localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+}
+
+// ── Logseq Parser ───────────────────────────────────────────
+const TASK_RE = /^[\s-]*\b(NOW|LATER|TODO|DOING|DONE|WAITING|WAIT)\b\s+(.+)/;
+const PRIORITY_RE = /\[#([ABC])]\s*/;
+const DEADLINE_RE = /DEADLINE:\s*<([^>]+)>/;
+const SCHEDULED_RE = /SCHEDULED:\s*<([^>]+)>/;
+const TAG_RE = /#(\w[\w-]*)/g;
+
+function parseLogseqTasks(markdown, filename) {
+  const lines = markdown.split('\n');
+  const tasks = [];
+  for (const line of lines) {
+    const m = line.match(TASK_RE);
+    if (!m) continue;
+    let status = m[1];
+    let text = m[2].trim();
+
+    // Normalize WAIT → WAITING
+    if (status === 'WAIT') status = 'WAITING';
+
+    // Extract priority
+    let priority = null;
+    const pm = text.match(PRIORITY_RE);
+    if (pm) { priority = pm[1]; text = text.replace(PRIORITY_RE, ''); }
+
+    // Extract deadline/scheduled
+    let deadline = null, scheduled = null;
+    const dm = text.match(DEADLINE_RE);
+    if (dm) { deadline = dm[1]; text = text.replace(DEADLINE_RE, '').trim(); }
+    const sm = text.match(SCHEDULED_RE);
+    if (sm) { scheduled = sm[1]; text = text.replace(SCHEDULED_RE, '').trim(); }
+
+    // Extract tags
+    const tags = [];
+    let tm;
+    while ((tm = TAG_RE.exec(text)) !== null) tags.push(tm[1]);
+    text = text.replace(TAG_RE, '').trim();
+
+    // Clean up markdown formatting
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/`(.+?)`/g, '<code>$1</code>');
+    text = text.replace(/\[\[(.+?)]]/g, '$1');
+    text = text.replace(/\[(.+?)]\((.+?)\)/g, '$1');
+
+    tasks.push({ status, text, priority, deadline, scheduled, tags, source: filename });
+  }
+  return tasks;
+}
+
+// ── GitHub Fetcher ──────────────────────────────────────────
+async function fetchTodos(cfg) {
+  const { owner, repo, branch, path, token } = cfg;
+  const headers = { 'Accept': 'application/vnd.github+json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  // Fetch file tree from the target path
+  const apiBase = `https://api.github.com/repos/${owner}/${repo}`;
+  const treePath = path ? `${path}` : '';
+
+  // Try fetching as directory first via contents API
+  const contentsUrl = `${apiBase}/contents/${treePath}?ref=${branch || 'main'}`;
+  const resp = await fetch(contentsUrl, { headers });
+  if (!resp.ok) throw new Error(`GitHub API: ${resp.status} ${resp.statusText}`);
+
+  const data = await resp.json();
+  let files = [];
+
+  if (Array.isArray(data)) {
+    // It's a directory — find all .md files
+    files = data.filter(f => f.type === 'file' && f.name.endsWith('.md'));
+  } else if (data.type === 'file' && data.name.endsWith('.md')) {
+    // Single file
+    files = [data];
+  }
+
+  // Fetch each markdown file
+  const allTasks = [];
+  for (const file of files) {
+    const fileResp = await fetch(file.download_url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+    const md = await fileResp.text();
+    const tasks = parseLogseqTasks(md, file.name.replace('.md', ''));
+    allTasks.push(...tasks);
+  }
+
+  return allTasks;
+}
+
+// ── Rendering ───────────────────────────────────────────────
+const STATUS_ORDER = ['NOW', 'DOING', 'TODO', 'WAITING', 'LATER', 'DONE'];
+const STATUS_CONFIG = {
+  NOW:     { color: 'var(--now)',     label: 'Now' },
+  DOING:   { color: 'var(--doing)',   label: 'Doing' },
+  TODO:    { color: 'var(--todo)',    label: 'Todo' },
+  WAITING: { color: 'var(--waiting)', label: 'Waiting' },
+  LATER:   { color: 'var(--later)',   label: 'Later' },
+  DONE:    { color: 'var(--done)',    label: 'Done' },
+};
+
+let currentFilter = 'active';
+let allTasks = [];
+
+function renderApp() {
+  const config = getConfig();
+  if (!config) return renderSetup();
+
+  const cache = getCache();
+  if (cache) {
+    allTasks = cache.data;
+    renderTasks(cache.ts);
+  } else {
+    renderLoading();
+  }
+
+  loadFresh(config);
+}
+
+async function loadFresh(config) {
+  try {
+    allTasks = await fetchTodos(config);
+    saveCache(allTasks);
+    renderTasks(Date.now());
+  } catch (err) {
+    if (!getCache()) renderError(err.message);
+  }
+}
+
+function renderLoading() {
+  app.innerHTML = `
+    ${renderHeader()}
+    <div class="loading">
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+      <p>Fetching todos...</p>
+    </div>
+  `;
+  bindHeader();
+}
+
+function renderError(msg) {
+  app.innerHTML = `
+    ${renderHeader()}
+    <div class="error">
+      <div class="error-box">
+        <p>${msg}</p>
+        <p class="hint">Check your config and try again</p>
+      </div>
+    </div>
+  `;
+  bindHeader();
+}
+
+function renderHeader() {
+  const config = getConfig();
+  const repoName = config ? `${config.owner}/${config.repo}` : '';
+  return `
+    <header id="header">
+      <div class="header-top">
+        <h1>todos <span>/ ${repoName}</span></h1>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="settings-link" id="settingsBtn">config</button>
+          <button class="refresh-btn" id="refreshBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+              <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+  `;
+}
+
+function bindHeader() {
+  const header = document.getElementById('header');
+  window.onscroll = () => header?.classList.toggle('scrolled', window.scrollY > 10);
+
+  document.getElementById('refreshBtn')?.addEventListener('click', async function() {
+    this.classList.add('spinning');
+    const config = getConfig();
+    if (config) {
+      try {
+        allTasks = await fetchTodos(config);
+        saveCache(allTasks);
+        renderTasks(Date.now());
+      } catch(e) { /* show cached */ }
+    }
+    setTimeout(() => this.classList.remove('spinning'), 800);
+  });
+
+  document.getElementById('settingsBtn')?.addEventListener('click', () => renderSetup(true));
+}
+
+function getFilteredTasks() {
+  if (currentFilter === 'all') return allTasks;
+  if (currentFilter === 'active') return allTasks.filter(t => t.status !== 'DONE');
+  return allTasks.filter(t => t.status === currentFilter);
+}
+
+function renderTasks(cacheTs) {
+  const counts = {};
+  for (const t of allTasks) counts[t.status] = (counts[t.status] || 0) + 1;
+  const activeCount = allTasks.filter(t => t.status !== 'DONE').length;
+
+  const filters = [
+    { key: 'active', label: 'Active', count: activeCount },
+    ...STATUS_ORDER.filter(s => counts[s]).map(s => ({ key: s, label: STATUS_CONFIG[s].label, count: counts[s] })),
+    { key: 'all', label: 'All', count: allTasks.length },
+  ];
+
+  const filtered = getFilteredTasks();
+  const grouped = {};
+  for (const t of filtered) {
+    if (!grouped[t.status]) grouped[t.status] = [];
+    grouped[t.status].push(t);
+  }
+
+  // Sort by priority within groups
+  for (const key of Object.keys(grouped)) {
+    grouped[key].sort((a, b) => {
+      const pa = a.priority || 'Z';
+      const pb = b.priority || 'Z';
+      return pa.localeCompare(pb);
+    });
+  }
+
+  const sectionsHtml = STATUS_ORDER
+    .filter(s => grouped[s]?.length)
+    .map((s, i) => `
+      <div class="section" style="animation-delay: ${i * 0.05}s">
+        <div class="section-header">
+          <div class="section-dot" style="background: ${STATUS_CONFIG[s].color}"></div>
+          <span class="section-label">${STATUS_CONFIG[s].label}</span>
+          <span class="section-count">${grouped[s].length}</span>
+        </div>
+        ${grouped[s].map(t => renderTask(t)).join('')}
+      </div>
+    `).join('');
+
+  const updatedStr = cacheTs ? `Updated ${timeAgo(cacheTs)}` : '';
+
+  app.innerHTML = `
+    ${renderHeader()}
+    <div class="filters" id="filters">
+      ${filters.map(f => `
+        <button class="filter-btn ${currentFilter === f.key ? 'active' : ''}" data-filter="${f.key}">
+          ${f.label} <span class="count">${f.count}</span>
+        </button>
+      `).join('')}
+    </div>
+    ${filtered.length ? sectionsHtml : '<div class="empty"><p>No tasks match this filter</p></div>'}
+    <div class="last-updated">${updatedStr}</div>
+  `;
+
+  bindHeader();
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentFilter = btn.dataset.filter;
+      renderTasks(cacheTs);
+    });
+  });
+}
+
+function renderTask(t) {
+  const tagClass = `tag-${t.status.toLowerCase()}`;
+  const doneClass = t.status === 'DONE' ? 'done-task' : '';
+  const prioClass = t.priority ? `priority-${t.priority.toLowerCase()}` : '';
+
+  let meta = `<span class="task-tag ${tagClass}">${t.status}</span>`;
+  if (t.priority) meta += `<span class="task-priority ${prioClass}">[#${t.priority}]</span>`;
+  if (t.deadline) meta += `<span class="task-priority">📅 ${t.deadline}</span>`;
+  if (t.scheduled) meta += `<span class="task-priority">⏰ ${t.scheduled}</span>`;
+  meta += `<span class="task-source">${t.source}</span>`;
+
+  return `
+    <div class="task ${doneClass}">
+      <div class="task-content">${t.text}</div>
+      <div class="task-meta">${meta}</div>
+    </div>
+  `;
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
+}
+
+// ── Setup Screen ────────────────────────────────────────────
+function renderSetup(isEdit = false) {
+  const cfg = getConfig() || {};
+  app.innerHTML = `
+    <div class="setup">
+      <h2>${isEdit ? '⚙ Config' : '→ Setup'}</h2>
+      <p>Point this app at your GitHub repo<br>containing Logseq markdown files.</p>
+      <div class="setup-form">
+        <label>Repository owner</label>
+        <input id="cfgOwner" placeholder="your-username" value="${cfg.owner || ''}">
+
+        <label>Repository name</label>
+        <input id="cfgRepo" placeholder="my-logseq-notes" value="${cfg.repo || ''}">
+
+        <label>Branch</label>
+        <input id="cfgBranch" placeholder="main" value="${cfg.branch || 'main'}">
+
+        <label>Path to markdown files (optional)</label>
+        <input id="cfgPath" placeholder="pages/ or journals/" value="${cfg.path || ''}">
+        <p class="field-hint">Leave empty for repo root. Use a folder like "pages" or a single file like "pages/todos.md"</p>
+
+        <label>GitHub token (optional, for private repos)</label>
+        <input id="cfgToken" type="password" placeholder="ghp_..." value="${cfg.token || ''}">
+        <p class="field-hint">Fine-grained token with Contents read access</p>
+
+        <button class="setup-btn" id="saveBtn">Save & Load</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    const owner = document.getElementById('cfgOwner').value.trim();
+    const repo = document.getElementById('cfgRepo').value.trim();
+    const branch = document.getElementById('cfgBranch').value.trim() || 'main';
+    const path = document.getElementById('cfgPath').value.trim();
+    const token = document.getElementById('cfgToken').value.trim();
+
+    if (!owner || !repo) return;
+
+    saveConfig({ owner, repo, branch, path, token });
+    localStorage.removeItem(CACHE_KEY);
+    currentFilter = 'active';
+    renderApp();
+  });
+}
+
+// ── Init ────────────────────────────────────────────────────
+renderApp();
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
