@@ -679,9 +679,13 @@ function renderTasks(cacheTs) {
     grouped[t.status].push(t);
   }
 
-  // Sort by priority within groups
+  // Sort by source (manual first, pylon second, linear third), then priority
+  const SOURCE_ORDER = { 'pylon-digest': 1, 'linear-digest': 2 };
   for (const key of Object.keys(grouped)) {
     grouped[key].sort((a, b) => {
+      const sa = SOURCE_ORDER[a.source] || 0;
+      const sb = SOURCE_ORDER[b.source] || 0;
+      if (sa !== sb) return sa - sb;
       const pa = a.priority || 'Z';
       const pb = b.priority || 'Z';
       return pa.localeCompare(pb);
