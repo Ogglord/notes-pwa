@@ -503,9 +503,9 @@ async function fetchPath(apiBase, branchRef, pathStr, headers, token) {
     files = [data];
   }
 
-// Fetch each markdown file via Contents API (avoids CORS issues with raw.githubusercontent.com)
-  const allTasks = [];
-  for (const file of files) {
+  // Fetch each markdown file via Contents API (avoids CORS issues with raw.githubusercontent.com)
+  const tasks = [];
+  const fetches = files.map(async file => {
     let md;
     if (token) {
       // For private repos: fetch via API and decode base64 content
@@ -519,9 +519,21 @@ async function fetchPath(apiBase, branchRef, pathStr, headers, token) {
       const fileResp = await fetch(file.download_url);
       md = await fileResp.text();
     }
-    const tasks = parseLogseqTasks(md, file.name.replace('.md', ''));
-    allTasks.push(...tasks);
-  }
+    return parseLogseqTasks(md, file.name.replace('.md', ''));
+  });
+  const results = await Promise.all(fetches);
+  for (const r of results) tasks.push(...r);
+  return tasks;
+}
+
+async function fetchTodos(cfg) {
+  const { owner, repo, branch, token } = cfg;
+  const headers = { 'Accept': 'application/vnd.github+json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const apiBase = `https://api.github.com/repos/${owner}/${repo}`;
+  const branchRef = branch || 'main';
+  const paths = getPaths(cfg);
 
   const results = await Promise.all(
     paths.map(p => fetchPath(apiBase, branchRef, p.trim(), headers, token))
