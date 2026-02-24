@@ -467,11 +467,22 @@ async function fetchTodos(cfg) {
     files = [data];
   }
 
-  // Fetch each markdown file
+// Fetch each markdown file via Contents API (avoids CORS issues with raw.githubusercontent.com)
   const allTasks = [];
   for (const file of files) {
-    const fileResp = await fetch(file.download_url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
-    const md = await fileResp.text();
+    let md;
+    if (token) {
+      // For private repos: fetch via API and decode base64 content
+      const fileResp = await fetch(file.url, { headers });
+      const fileData = await fileResp.json();
+      md = atob(fileData.content.replace(/\n/g, ''));
+      // Handle UTF-8 properly
+      md = new TextDecoder().decode(Uint8Array.from(md, c => c.charCodeAt(0)));
+    } else {
+      // For public repos: download_url works fine
+      const fileResp = await fetch(file.download_url);
+      md = await fileResp.text();
+    }
     const tasks = parseLogseqTasks(md, file.name.replace('.md', ''));
     allTasks.push(...tasks);
   }
